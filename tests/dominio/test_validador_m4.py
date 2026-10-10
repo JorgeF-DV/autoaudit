@@ -80,6 +80,12 @@ def test_cp_m4_06_ac_003_1_el_ciclo_no_se_detiene_en_la_primera_falla() -> None:
     assert resultado.valores == {"q4": Decimal("12.5")}
 
 
+def test_respuesta_de_texto_se_guarda_sin_convertir() -> None:
+    pregunta = Pregunta("herramienta", TipoRespuesta.TEXTO)
+    resultado = validar(bloque(pregunta), {"herramienta": " Agenda en papel "})
+    assert resultado.valores == {"herramienta": "Agenda en papel"}
+
+
 @pytest.mark.parametrize("n", [1, 2, 8, MAX_PREGUNTAS_POR_BLOQUE - 1, MAX_PREGUNTAS_POR_BLOQUE])
 def test_cp_m4_07_ciclo_tipico_y_maximo(n: int) -> None:
     preguntas = tuple(horas(f"q{i}") for i in range(n))
