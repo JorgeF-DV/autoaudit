@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoaudit"
+version = "0.1.0"
+description = "Lógica de dominio de AutoAudit: diagnóstico de automatización de procesos para PYMEs"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Jorge Luis Flórez González" }]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-mock>=3.14",
+    "pytest-socket>=0.7",
+    "coverage[toml]>=7.5",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "import-linter>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --disable-socket"
+
+[tool.coverage.run]
+branch = true
+source = ["autoaudit"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "UP", "C90", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
+
+[tool.importlinter]
+root_package = "autoaudit"
+
+[[tool.importlinter.contracts]]
+name = "Capas: servicios depende de dominio, nunca al revés"
+type = "layers"
+layers = ["autoaudit.servicios", "autoaudit.dominio"]
