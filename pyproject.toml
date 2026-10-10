@@ -54,7 +54,7 @@ max-complexity = 10
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["src"]
+files = ["src", "tests"]
 
 [tool.importlinter]
 root_package = "autoaudit"
