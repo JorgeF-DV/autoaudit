@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  calidad-y-pruebas:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - name: Estilo y complejidad
+        run: ruff check . && ruff format --check .
+      - name: Tipos
+        run: mypy
+      - name: Regla de capas
+        run: lint-imports
+      - name: Pruebas y cobertura de ramas
+        run: coverage run -m pytest && coverage report
+      - name: Mutación dirigida
+        run: python tools/mutantes.py
