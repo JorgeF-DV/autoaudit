@@ -22,6 +22,7 @@ src/autoaudit/
     pagos.py        M2 procesar_confirmacion · crear_orden con reintentos · conciliación
     revision.py     M5 aprobar con guarda compuesta y bitácora
 tests/              espejo de src/; dobles en memoria en tests/fakes.py
+  funcionales/      caja negra del RTF4: casos CF-xxx derivados de las HU, no del código
 tools/mutantes.py   prueba de mutación dirigida
 ```
 
@@ -43,13 +44,15 @@ pre-commit install   # ruff y mypy antes de cada commit
 | Qué | Comando |
 |---|---|
 | Pruebas (sin red: `--disable-socket`) | `pytest` |
+| Solo funcionales de caja negra (RTF4) | `pytest tests/funcionales -v` |
+| Reporte HTML de las funcionales | `pytest tests/funcionales --html=reportes/pruebas-funcionales.html --self-contained-html` |
 | Cobertura de ramas (mínimo 85 %) | `coverage run -m pytest && coverage report` |
 | Estilo y complejidad (C901 ≤ 10) | `ruff check . && ruff format --check .` |
 | Tipos (modo estricto) | `mypy` |
 | Regla de capas | `lint-imports` |
 | Mutación dirigida | `python tools/mutantes.py` |
 
-Estado actual: 104 pruebas, 100 % de cobertura de líneas y ramas, 16/16 mutantes eliminados.
+Estado actual: 163 pruebas (104 estructurales + 59 funcionales), 100 % de cobertura de líneas y ramas, 16/16 mutantes eliminados.
 
 ## Trazabilidad con el RTF3 y JIRA
 
@@ -63,6 +66,22 @@ aceptación), así que cada fila de las tablas del documento se puede buscar en 
 | HU-003 | M4 | `dominio/cuestionario.py` · `servicios/cuestionario.py` | CP-M4-01 a 09, traza Tabla 12, AC-003-1 a 4 | SCRUM-23 |
 | HU-001 | M2 | `dominio/pagos.py` · `servicios/pagos.py` | CP-M2-01 a 07, CP-PG-01 a 07, AC-001-1 a 6 | SCRUM-24 |
 | HU-008 | M5 | `dominio/revision.py` · `servicios/revision.py` | CP-M5-01 a 15, AC-008-1 a 5 | SCRUM-25 |
+
+## Pruebas funcionales de caja negra (RTF4)
+
+`tests/funcionales/test_caja_negra.py` prueba los servicios solo por su API pública. Cada caso
+nace de un criterio de aceptación del RT2 y se diseña con particiones de equivalencia, valores
+límite y escenarios de error. El CI publica el reporte HTML como artefacto de cada ejecución.
+
+| HU | Casos | Qué cubren |
+|---|---|---|
+| Flujo completo | CF-E2E-01 | pago → bloques → análisis → ROI → aprobación |
+| HU-001 | CF-001-01 a 08 | pago aprobado/pendiente/rechazado, firma inválida, doble cobro, pasarela caída |
+| HU-003 | CF-003-01 a 05 | bloque completo, obligatorias vacías, límites 0/744/744,01, tipo inválido, coma decimal |
+| HU-004 | CF-004-01 a 03 | reanudación en el primer bloque incompleto, lo válido se conserva |
+| HU-006 | CF-006-01 a 03 | límites del índice 4,00/3,95/3,00/2,95, variabilidad 30/30,01, aislamiento de errores |
+| HU-007 | CF-007-01 a 04 | ROI exacto, umbral 50,00/49,99, horas y costo inválidos, BAJO sin ROI |
+| HU-008 | CF-008-01 a 03 | aprobación con registro, cinco guardas, no se entrega sin aprobar |
 
 ## Decisiones de diseño que las pruebas protegen
 
