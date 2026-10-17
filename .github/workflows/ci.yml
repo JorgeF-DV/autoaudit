@@ -26,3 +26,11 @@ jobs:
         run: coverage run -m pytest && coverage report
       - name: Mutación dirigida
         run: python tools/mutantes.py
+      - name: Reporte de pruebas funcionales (caja negra)
+        if: always()
+        run: pytest tests/funcionales --html=reportes/pruebas-funcionales.html --self-contained-html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reporte-pruebas-funcionales-py${{ matrix.python-version }}
+          path: reportes/pruebas-funcionales.html
