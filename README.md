@@ -9,6 +9,7 @@ diseñados en el **RTF3 — Diseño de Pruebas Estructurales** y sus pruebas de 
 
 ```
 src/autoaudit/
+  presentacion/     api.py: rutas FastAPI y manejador global ESTADO_HTTP (excepción → código HTTP)
   dominio/          reglas y cálculos sin entrada/salida (no importa servicios, red ni BD)
     evaluacion.py   M1 EvaluadorCriterios.clasificar · M3 CalculadoraImpacto.estimar
     cuestionario.py M4 ValidadorBloque.validar · punto_de_reanudacion
@@ -22,11 +23,12 @@ src/autoaudit/
     pagos.py        M2 procesar_confirmacion · crear_orden con reintentos · conciliación
     revision.py     M5 aprobar con guarda compuesta y bitácora
 tests/              espejo de src/; dobles en memoria en tests/fakes.py
-  funcionales/      caja negra del RTF4: casos CF-xxx derivados de las HU, no del código
+  funcionales/      caja negra del RTF4: casos CF-xxx (servicios) y CF-API-xxx (HTTP con TestClient)
 tools/mutantes.py   prueba de mutación dirigida
 ```
 
-La regla de capas (`servicios` depende de `dominio`, nunca al revés) la verifica import-linter.
+import-linter verifica dos contratos: las capas van `presentacion → servicios → dominio`, nunca
+al revés, y ni el dominio ni los servicios importan `fastapi`, `starlette` o `pydantic`.
 
 ## Instalación
 
@@ -44,15 +46,20 @@ pre-commit install   # ruff y mypy antes de cada commit
 | Qué | Comando |
 |---|---|
 | Pruebas (sin red: `--disable-socket`) | `pytest` |
-| Solo funcionales de caja negra (RTF4) | `pytest tests/funcionales -v` |
+| Solo funcionales de caja negra y API (RTF4) | `pytest tests/funcionales -v` |
 | Reporte HTML de las funcionales | `pytest tests/funcionales --html=reportes/pruebas-funcionales.html --self-contained-html` |
 | Cobertura de ramas (mínimo 85 %) | `coverage run -m pytest && coverage report` |
 | Estilo y complejidad (C901 ≤ 10) | `ruff check . && ruff format --check .` |
 | Tipos (modo estricto) | `mypy` |
 | Regla de capas | `lint-imports` |
-| Mutación dirigida | `python tools/mutantes.py` |
+| Mutación dirigida (todos / solo módulos críticos) | `python tools/mutantes.py` · `python tools/mutantes.py M1 M3 M5` |
 
-Estado actual: 163 pruebas (104 estructurales + 59 funcionales), 100 % de cobertura de líneas y ramas, 16/16 mutantes eliminados.
+Estado actual: 201 pruebas (104 estructurales + 61 funcionales de servicios + 36 de API), 100 % de
+cobertura de líneas y ramas, 17/17 mutantes eliminados.
+
+En cada push y PR el CI corre estilo, tipos, capas, pruebas con cobertura y el reporte HTML. La
+mutación copia el repositorio una vez por mutante, así que no bloquea los PR: corre cada noche
+sobre M1, M3 y M5 y bajo demanda (*Run workflow*) sobre los módulos que se indiquen.
 
 ## Trazabilidad con el RTF3 y JIRA
 
@@ -78,10 +85,28 @@ límite y escenarios de error. El CI publica el reporte HTML como artefacto de c
 | Flujo completo | CF-E2E-01 | pago → bloques → análisis → ROI → aprobación |
 | HU-001 | CF-001-01 a 08 | pago aprobado/pendiente/rechazado, firma inválida, doble cobro, pasarela caída |
 | HU-003 | CF-003-01 a 05 | bloque completo, obligatorias vacías, límites 0/744/744,01, tipo inválido, coma decimal |
-| HU-004 | CF-004-01 a 03 | reanudación en el primer bloque incompleto, lo válido se conserva |
+| HU-004 | CF-004-01 a 04 | reanudación en el primer bloque incompleto, lo válido se conserva, índice −1 y 3 |
 | HU-006 | CF-006-01 a 03 | límites del índice 4,00/3,95/3,00/2,95, variabilidad 30/30,01, aislamiento de errores |
 | HU-007 | CF-007-01 a 04 | ROI exacto, umbral 50,00/49,99, horas y costo inválidos, BAJO sin ROI |
 | HU-008 | CF-008-01 a 03 | aprobación con registro, cinco guardas, no se entrega sin aprobar |
+
+### Pruebas de API (`tests/funcionales/test_api.py`)
+
+`presentacion/api.py` traduce cada excepción tipificada en un solo diccionario, `ESTADO_HTTP`. La
+prueba `test_mapeo_cubre_todas_las_excepciones_tipificadas` compara ese diccionario con todas las
+subclases de `ErrorAutoAudit`: si alguien agrega una excepción sin decidir su código HTTP, el CI
+falla. Los casos CF-API repiten por HTTP los escenarios de HU-001, 003, 004 y 008 y verifican el
+código de estado y el cuerpo `{"codigo": ...}`. El módulo solo permite conexiones a 127.0.0.1 (el
+bucle de asyncio del `TestClient` las necesita); cualquier otro destino sigue bloqueado.
+
+| Excepción | HTTP |
+|---|---|
+| `DatosInvalidosError` | 422 |
+| `TransicionInvalidaError` (`ROL_NO_AUTORIZADO` → 403) | 409 |
+| `ConflictoVersionError` | 409 |
+| `PasarelaRechazoError` | 402 |
+| `PasarelaNoDisponibleError` | 503 |
+| `ConfiguracionInvalidaError` | 500 |
 
 ## Decisiones de diseño que las pruebas protegen
 
@@ -99,6 +124,7 @@ límite y escenarios de error. El CI publica el reporte HTML como artefacto de c
 ## Pendiente para el siguiente sprint
 
 - M6 `vigilarSLA` (minutos hábiles y festivos) y M7 `autorizar`.
-- Capas de presentación (FastAPI) e integración (SQLAlchemy, adaptador httpx de la pasarela con
-  la prueba CP-PG-08 usando respx).
+- Capa de integración (SQLAlchemy, adaptador httpx de la pasarela con la prueba CP-PG-08 usando
+  respx) y la colección de Postman ejecutada con Newman contra ese despliegue (Sprint 5).
+- Autenticación real con `autorizar()` (M7): hoy el rol llega por la cabecera `X-Rol`.
 - Priorizador y generación del borrador del reporte.
