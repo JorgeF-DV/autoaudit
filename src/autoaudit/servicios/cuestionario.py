@@ -9,7 +9,7 @@ from autoaudit.dominio.cuestionario import (
     ValidadorBloque,
     punto_de_reanudacion,
 )
-from autoaudit.dominio.errores import TransicionInvalidaError
+from autoaudit.dominio.errores import DatosInvalidosError, TransicionInvalidaError
 from autoaudit.dominio.pagos import EstadoDiagnostico, ReglaHabilitacion
 from autoaudit.dominio.puertos import ColaTrabajos, RepositorioCuestionario, RepositorioDiagnosticos
 
@@ -44,6 +44,9 @@ class ServicioCuestionario:
             raise TransicionInvalidaError("PREGUNTAS_NO_HABILITADAS")
 
         version = self._cuestionarios.version(diagnostico.version_cuestionario_id)
+        # Sin esta guarda, el índice -1 de Python marcaría como completo el último bloque.
+        if not 0 <= indice < len(version.bloques):
+            raise DatosInvalidosError("BLOQUE_INEXISTENTE")
         validacion = self._validador.validar(version.bloques[indice], respuestas)
         # Lo válido se guarda aunque el bloque no avance (RNF-06).
         self._cuestionarios.guardar_bloque(
