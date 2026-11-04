@@ -9,6 +9,7 @@ description = "Lógica de dominio de AutoAudit: diagnóstico de automatización 
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Jorge Luis Flórez González" }]
+dependencies = ["fastapi>=0.115"]
 
 [project.optional-dependencies]
 dev = [
@@ -16,6 +17,7 @@ dev = [
     "pytest-mock>=3.14",
     "pytest-socket>=0.7",
     "pytest-html>=4.1",
+    "httpx>=0.27",
     "coverage[toml]>=7.5",
     "hypothesis>=6.100",
     "ruff>=0.6",
@@ -47,6 +49,9 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "B", "UP", "C90", "S", "SIM", "RUF"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Header"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
@@ -60,8 +65,15 @@ files = ["src", "tests"]
 
 [tool.importlinter]
 root_package = "autoaudit"
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Capas: servicios depende de dominio, nunca al revés"
+name = "Capas: presentacion -> servicios -> dominio, nunca al revés"
 type = "layers"
-layers = ["autoaudit.servicios", "autoaudit.dominio"]
+layers = ["autoaudit.presentacion", "autoaudit.servicios", "autoaudit.dominio"]
+
+[[tool.importlinter.contracts]]
+name = "El dominio y los servicios no conocen el framework web"
+type = "forbidden"
+source_modules = ["autoaudit.dominio", "autoaudit.servicios"]
+forbidden_modules = ["fastapi", "starlette", "pydantic"]

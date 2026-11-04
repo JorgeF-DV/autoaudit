@@ -4,7 +4,9 @@ Complementa a mutmut (que no corre en Windows). Cada mutante es un error que el 
 como probable: comparaciones de frontera, la doble anualización y el factor equivocado de la
 Tabla 23, un `break` en el ciclo de M4, la pérdida de idempotencia, etc.
 
-Uso, desde la raíz del repositorio:  python tools/mutantes.py
+Uso, desde la raíz del repositorio:
+    python tools/mutantes.py            todos los mutantes
+    python tools/mutantes.py M1 M3 M5   solo los de esos módulos (ejecución nocturna del CI)
 """
 
 import os
@@ -38,6 +40,8 @@ MUTANTES = [
      "M4: break en la primera pendiente"),
     ("dominio/cuestionario.py", "if not valor.is_finite():", "if False:",
      "M4: acepta NaN e Infinity"),
+    ("servicios/cuestionario.py", "if not 0 <= indice < len(version.bloques):",
+     "if not indice < len(version.bloques):", "M4: acepta el índice de bloque -1"),
     ("dominio/pagos.py", "and diagnostico.orden_aprobada() is not None",
      "or diagnostico.orden_aprobada() is not None", "RN001: and por or"),
     ("servicios/pagos.py", "if evento.id in orden.eventos_procesados:", "if False:",
@@ -68,16 +72,19 @@ def probar(archivo: str, original: str, mutado: str, copia: Path) -> bool:
     return subprocess.run(comando, cwd=copia, env=entorno, capture_output=True).returncode != 0  # noqa: S603
 
 
-def main() -> int:
+def main(modulos: list[str]) -> int:
+    elegidos = [m for m in MUTANTES if not modulos or m[3].split(":")[0] in modulos]
+    if not elegidos:
+        raise SystemExit(f"Ningún mutante pertenece a {modulos}")
     with tempfile.TemporaryDirectory() as tmp:
         vivos = 0
-        for archivo, original, mutado, nombre in MUTANTES:
+        for archivo, original, mutado, nombre in elegidos:
             detectado = probar(archivo, original, mutado, Path(tmp) / "copia")
             vivos += not detectado
             print(f"{'eliminado' if detectado else 'VIVO':10} {nombre}")
-    print(f"\n{len(MUTANTES) - vivos}/{len(MUTANTES)} mutantes eliminados")
+    print(f"\n{len(elegidos) - vivos}/{len(elegidos)} mutantes eliminados")
     return 1 if vivos else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
