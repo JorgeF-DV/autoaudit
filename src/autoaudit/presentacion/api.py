@@ -25,6 +25,7 @@ from autoaudit.dominio.errores import (
 )
 from autoaudit.dominio.pagos import EstadoPago, EventoPasarela
 from autoaudit.dominio.revision import Rol, Usuario
+from autoaudit.presentacion.mensajes import mensaje
 from autoaudit.servicios.cuestionario import ServicioCuestionario
 from autoaudit.servicios.pagos import CodigoOrden, CodigoPago, ServicioPagos
 from autoaudit.servicios.revision import ServicioRevision
@@ -82,19 +83,26 @@ def crear_app(
     @app.exception_handler(ErrorAutoAudit)
     async def _error_tipificado(_: Request, error: Exception) -> JSONResponse:
         assert isinstance(error, ErrorAutoAudit)  # noqa: S101 - FastAPI tipa el manejador así
-        return JSONResponse({"codigo": error.codigo}, estado_http(error))
+        cuerpo = {"codigo": error.codigo, "mensaje": mensaje(error.codigo)}
+        return JSONResponse(cuerpo, estado_http(error))
 
     @app.exception_handler(RequestValidationError)
     async def _solicitud_invalida(_: Request, error: Exception) -> JSONResponse:
         assert isinstance(error, RequestValidationError)  # noqa: S101
         campos = [".".join(str(parte) for parte in e["loc"]) for e in error.errors()]
-        return JSONResponse({"codigo": "SOLICITUD_INVALIDA", "campos": campos}, 422)
+        cuerpo = {"codigo": "SOLICITUD_INVALIDA", "mensaje": mensaje("SOLICITUD_INVALIDA")}
+        return JSONResponse({**cuerpo, "campos": campos}, 422)
 
     @app.post("/diagnosticos/{diagnostico_id}/orden")
     def crear_orden(diagnostico_id: UUID) -> JSONResponse:
         r = pagos.crear_orden(diagnostico_id)
         orden_id = None if r.orden_id is None else str(r.orden_id)
-        cuerpo = {"codigo": r.codigo, "orden_id": orden_id, "url_pago": r.url_pago}
+        cuerpo = {
+            "codigo": r.codigo,
+            "mensaje": mensaje(r.codigo),
+            "orden_id": orden_id,
+            "url_pago": r.url_pago,
+        }
         return JSONResponse(cuerpo, ESTADO_ORDEN[r.codigo])
 
     @app.post("/pagos/webhook")
@@ -119,6 +127,11 @@ def crear_app(
             "pendientes": list(v.pendientes),
             "errores": dict(v.errores),
             "siguiente_bloque": r.siguiente_bloque,
+            # Lo que el portal muestra debajo de cada pregunta marcada.
+            "mensajes": {
+                **{p: mensaje("OBLIGATORIA") for p in v.pendientes},
+                **{p: mensaje(c) for p, c in v.errores.items()},
+            },
         }
         return JSONResponse(cuerpo, 200 if v.puede_avanzar else 422)
 
