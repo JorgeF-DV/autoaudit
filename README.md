@@ -10,6 +10,7 @@ diseñados en el **RTF3 — Diseño de Pruebas Estructurales** y sus pruebas de 
 ```
 src/autoaudit/
   presentacion/     api.py: rutas FastAPI y manejador global ESTADO_HTTP (excepción → código HTTP)
+                    mensajes.py: texto que ve el usuario para cada código (RTF4 v2)
   dominio/          reglas y cálculos sin entrada/salida (no importa servicios, red ni BD)
     evaluacion.py   M1 EvaluadorCriterios.clasificar · M3 CalculadoraImpacto.estimar
     cuestionario.py M4 ValidadorBloque.validar · punto_de_reanudacion
@@ -54,8 +55,8 @@ pre-commit install   # ruff y mypy antes de cada commit
 | Regla de capas | `lint-imports` |
 | Mutación dirigida (todos / solo módulos críticos) | `python tools/mutantes.py` · `python tools/mutantes.py M1 M3 M5` |
 
-Estado actual: 201 pruebas (104 estructurales + 61 funcionales de servicios + 36 de API), 100 % de
-cobertura de líneas y ramas, 17/17 mutantes eliminados.
+Estado actual: 227 pruebas (104 estructurales + 61 funcionales + 36 de API + 26 de mensajes), 100 %
+de cobertura de líneas y ramas, 17/17 mutantes eliminados.
 
 En cada push y PR el CI corre estilo, tipos, capas, pruebas con cobertura y el reporte HTML. La
 mutación copia el repositorio una vez por mutante, así que no bloquea los PR: corre cada noche
@@ -107,6 +108,13 @@ bucle de asyncio del `TestClient` las necesita); cualquier otro destino sigue bl
 | `PasarelaRechazoError` | 402 |
 | `PasarelaNoDisponibleError` | 503 |
 | `ConfiguracionInvalidaError` | 500 |
+
+### Mensajes para el usuario (RTF4 v2)
+
+Cada error de la API lleva, además del `codigo`, un `mensaje` en lenguaje del negocio
+(`presentacion/mensajes.py`); el PUT de un bloque devuelve `mensajes` por pregunta. El portal solo
+muestra ese texto. `tests/funcionales/test_mensajes.py` falla si un código que puede llegar a la
+pantalla no tiene mensaje o si un mensaje expone constantes, códigos HTTP o jerga técnica.
 
 ## Decisiones de diseño que las pruebas protegen
 

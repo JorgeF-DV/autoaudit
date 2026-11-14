@@ -21,6 +21,7 @@ from autoaudit.dominio.errores import (
 from autoaudit.dominio.puertos import Bitacora
 from autoaudit.dominio.revision import EstadoReporte, Reporte
 from autoaudit.presentacion.api import ESTADO_HTTP, ESTADO_POR_CODIGO, crear_app
+from autoaudit.presentacion.mensajes import mensaje
 from autoaudit.servicios.revision import ServicioRevision
 from tests.fakes import ReportesEnMemoria
 from tests.funcionales.escenario import AUDITOR, RESPUESTAS_ALTO, T0, App
@@ -114,7 +115,8 @@ def test_manejador_global_traduce_cada_excepcion(
     api.aplicacion.add_api_route("/falla", falla)
     respuesta = api.http.get("/falla")
 
-    assert (respuesta.status_code, respuesta.json()) == (estado, {"codigo": codigo})
+    assert respuesta.status_code == estado
+    assert respuesta.json() == {"codigo": codigo, "mensaje": mensaje(codigo)}
 
 
 # ── HU-001 · Orden de pago y webhook ─────────────────────────────────────────────────────────
@@ -193,14 +195,17 @@ def test_cf_api_001_08_webhook_sin_cabecera_de_firma_es_422(api: Api) -> None:
     r = api.http.post("/pagos/webhook", content=EVENTO_APROBADO)
 
     assert r.status_code == 422
-    assert r.json() == {"codigo": "SOLICITUD_INVALIDA", "campos": ["header.x-firma"]}
+    assert (r.json()["codigo"], r.json()["campos"]) == ("SOLICITUD_INVALIDA", ["header.x-firma"])
 
 
 # ── HU-003 y HU-004 · Bloques de preguntas ───────────────────────────────────────────────────
 
 
 def test_cf_api_003_01_bloque_sin_pago_es_409(api: Api) -> None:
-    assert api.bloque(0, RESPUESTAS_ALTO) == (409, {"codigo": "PREGUNTAS_NO_HABILITADAS"})
+    estado, cuerpo = api.bloque(0, RESPUESTAS_ALTO)
+
+    assert (estado, cuerpo["codigo"]) == (409, "PREGUNTAS_NO_HABILITADAS")
+    assert cuerpo["mensaje"] == mensaje("PREGUNTAS_NO_HABILITADAS")
 
 
 def test_cf_api_003_02_bloque_valido_avanza(api: Api) -> None:
@@ -218,13 +223,19 @@ def test_cf_api_003_03_bloque_con_obligatoria_vacia_y_rango_es_422(api: Api) -> 
 
     assert estado == 422
     assert (cuerpo["pendientes"], cuerpo["errores"]) == (["horas_mes"], {"frecuencia": "RANGO"})
+    assert cuerpo["mensajes"] == {
+        "horas_mes": "Esta pregunta es obligatoria.",
+        "frecuencia": "El valor está fuera del rango permitido para esta pregunta.",
+    }
 
 
 @pytest.mark.parametrize("indice", [-1, 3], ids=["menos_uno", "uno_despues_del_ultimo"])
 def test_cf_api_004_01_indice_fuera_de_rango_es_422(api: Api, indice: int) -> None:
     api.pagar()
 
-    assert api.bloque(indice, RESPUESTAS_ALTO) == (422, {"codigo": "BLOQUE_INEXISTENTE"})
+    estado, cuerpo = api.bloque(indice, RESPUESTAS_ALTO)
+
+    assert (estado, cuerpo["codigo"]) == (422, "BLOQUE_INEXISTENTE")
 
 
 @pytest.mark.parametrize(
@@ -264,7 +275,7 @@ def test_cf_api_008_01_auditor_lider_aprueba(api: Api) -> None:
 def test_cf_api_008_02_aprobacion_rechazada(
     api: Api, rol: str, version: int, estado: int, codigo: str
 ) -> None:
-    assert api.aprobar(rol, version) == (estado, {"codigo": codigo})
+    assert api.aprobar(rol, version) == (estado, {"codigo": codigo, "mensaje": mensaje(codigo)})
     assert api.reporte.estado is EstadoReporte.EN_REVISION
 
 
